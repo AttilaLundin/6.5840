@@ -139,11 +139,8 @@ func (c *Coordinator) server() {
 	go http.Serve(l, nil)
 }
 
-//
 // main/mrcoordinator.go calls Done() periodically to find out
 // if the entire job has finished.
-//
-
 func (c *Coordinator) Done() bool {
 	ret := false
 

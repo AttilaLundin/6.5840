@@ -94,7 +94,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		printIfError(err)
 	}
 
-	args := SignalPhaseDoneArgs{IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths)), Status: DONE}
+	args := SignalPhaseDoneArgs{IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
 	for i, path := range intermediateFilePaths {
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
@@ -111,21 +111,31 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 }
 
 func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
-
-	// implement reduce
-	// json decode from replyReduce.filename
-	rFile, err := os.Open(replyReduce.Filename)
-	printIfError(err)
-
 	var reduceKV []KeyValue
-	dec := json.NewDecoder(rFile)
-	for {
-		var kv KeyValue
-		if err := dec.Decode(&kv); err != nil {
-			break
-		}
 
-		reduceKV = append(reduceKV, kv)
+	filesToReduce := make([]*os.File, len(replyReduce.intermediateFiles))
+	decs := make([]*json.Decoder, len(replyReduce.intermediateFiles))
+
+	for i, intermediateFile := range replyReduce.intermediateFiles {
+		file, err := os.Open(intermediateFile.filename)
+		printIfError(err)
+
+		filesToReduce[i] = file
+		decs[i] = json.NewDecoder(file)
+	}
+	/*
+		file, err := os.Open(replyReduce.intermediateFiles.filename)
+		printIfError(err)
+		dec := json.NewDecoder(file)*/
+
+	for _, decoder := range decs {
+		for {
+			var kv KeyValue
+			if err := decoder.Decode(&kv); err != nil {
+				break
+			}
+			reduceKV = append(reduceKV, kv)
+		}
 	}
 
 	group := make(map[string][]string)
@@ -139,18 +149,23 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 
 	for key, values := range group {
 		output := reducef(key, values)
-
 		fmt.Fprintf(ofile, "%v %v\n", key, output)
 	}
 
-	ofile.Close()
+	err := ofile.Close()
+	printIfError(err)
 
-	args := SignalPhaseDoneArgs{Status: DONE}
+	for _, f := range filesToReduce {
+		err := f.Close()
+		printIfError(err)
+	}
+
+	args := SignalPhaseDoneArgs{IntermediateFiles: replyReduce.intermediateFiles, Status: DONE}
 	reply := TaskReply{}
 
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)
 	if !reduceSuccess {
-		println("Signalling reduce done failed")
+		fmt.Println("Signalling reduce done failed")
 	}
 }
 
@@ -172,7 +187,7 @@ func RequestTask() *TaskReply {
 	return &reply
 }
 
-func MapSignalPhaseDone(args interface{}, reply TaskReply) bool {
+func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 
 	ok := call("Coordinator.MapPhaseDoneSignalled", &reply, &args)
 	if ok {
@@ -184,7 +199,7 @@ func MapSignalPhaseDone(args interface{}, reply TaskReply) bool {
 	}
 
 }
-func ReduceSignalPhaseDone(args interface{}, reply TaskReply) bool {
+func ReduceSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 
 	ok := call("Coordinator.ReducePhaseDoneSignalled", &reply, &args)
 	if ok {

@@ -147,9 +147,6 @@ func (c *Coordinator) Done() bool {
 	if c.done == true {
 		ret = true
 	}
-	// question: what is the entire job?
-
-	// Your code here.
 
 	return ret
 }

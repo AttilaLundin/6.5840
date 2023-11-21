@@ -171,9 +171,21 @@ func RequestTask() *TaskReply {
 	return &reply
 }
 
-func SignalPhaseDone(args interface{}, reply TaskReply) bool {
+func MapSignalPhaseDone(args interface{}, reply TaskReply) bool {
 
-	ok := call("Coordinator.PhaseDoneSignalled", &reply, &args)
+	ok := call("Coordinator.MapPhaseDoneSignalled", &reply, &args)
+	if ok {
+		fmt.Println("Coordinator has been signalled")
+		return true
+	} else {
+		fmt.Printf("call failed!\n")
+		return false
+	}
+
+}
+func ReduceSignalPhaseDone(args interface{}, reply TaskReply) bool {
+
+	ok := call("Coordinator.ReducePhaseDoneSignalled", &reply, &args)
 	if ok {
 		fmt.Println("Coordinator has been signalled")
 		return true

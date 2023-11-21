@@ -99,11 +99,12 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
 		args.IntermediateFiles[i].filename = replyMap.Filename
+		args.Status = REDUCE_PHASE
 	}
 
 	reply := TaskReply{}
 
-	mapSuccess := SignalPhaseDone(args, reply)
+	mapSuccess := MapSignalPhaseDone(args, reply)
 	if !mapSuccess {
 		println("Signalling map done failed")
 	}
@@ -147,7 +148,7 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	args := SignalPhaseDoneArgs{Status: DONE}
 	reply := TaskReply{}
 
-	reduceSuccess := SignalPhaseDone(args, reply)
+	reduceSuccess := ReduceSignalPhaseDone(args, reply)
 	if !reduceSuccess {
 		println("Signalling reduce done failed")
 	}

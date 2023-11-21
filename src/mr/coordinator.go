@@ -56,7 +56,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 	case REDUCE_PHASE:
 		if taskNr < c.nReduce {
-			reply.intermediateFile = c.intermediateFiles[taskNr]
+			reply.intermediateFiles = c.intermediateFiles[taskNr]
 			reply.NReduce = c.nReduce
 			reply.Status = REDUCE_PHASE
 			taskNr += 1
@@ -120,7 +120,7 @@ func (c *Coordinator) checkPhase(status Status) {
 	case DONE:
 		c.Done()
 	default:
-		fmt.Println("you should not get here")
+		fmt.Println("Status ==", status)
 	}
 
 }

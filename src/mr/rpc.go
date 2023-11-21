@@ -25,11 +25,11 @@ type SignalPhaseDoneArgs struct {
 }
 
 type TaskReply struct {
-	Filename         string
-	TaskNumber       int
-	NReduce          int
-	Status           Status
-	intermediateFile []IntermediateFile
+	Filename          string
+	TaskNumber        int
+	NReduce           int
+	Status            Status
+	intermediateFiles []IntermediateFile
 }
 
 // Cook up a unique-ish UNIX-domain socket name

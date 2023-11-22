@@ -42,7 +42,7 @@ var taskNr = 0
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
-	fmt.Println("Status in GranTask:", c.status)
+	fmt.Println("Status in GrantTask:", c.status)
 
 	switch c.status {
 
@@ -138,7 +138,7 @@ func (c *Coordinator) server() {
 func (c *Coordinator) Done() bool {
 	ret := false
 
-	if c.done == true {
+	if c.status == DONE {
 		ret = true
 	}
 

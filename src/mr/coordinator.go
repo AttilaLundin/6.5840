@@ -50,6 +50,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 			reply.Filename = c.files[taskNr]
 			reply.TaskNumber = taskNr
 			reply.NReduce = c.nReduce
+			reply.Status = MAP_PHASE
 			taskNr += 1
 		} else {
 			return errors.New("Map task not available")

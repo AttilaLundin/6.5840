@@ -126,6 +126,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 }
 
 func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
+	println(len(replyReduce.IntermediateFiles))
 	var reduceKV []KeyValue
 
 	filesToReduce := make([]*os.File, len(replyReduce.IntermediateFiles))

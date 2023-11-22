@@ -15,8 +15,8 @@ type Status int64
 type Coordinator struct {
 	nReduce           int
 	files             []string
-	done              bool
-	tasks             map[string]Task
+	mapTasks          map[string]Task
+	reduceTasks       map[int]Task
 	intermediateFiles map[int][]IntermediateFile
 	status            Status
 }
@@ -28,8 +28,9 @@ const (
 )
 
 type Task struct {
-	filename string
-	status   Status
+	ReduceBucket int
+	filename     string
+	status       Status
 }
 
 var taskNr = 0
@@ -47,10 +48,10 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 	case MAP_PHASE:
 		if taskNr < len(c.files) {
-			reply.Filename = c.files[taskNr]
-			reply.TaskNumber = taskNr
-			reply.NReduce = c.nReduce
 			reply.Status = MAP_PHASE
+			reply.Filename = c.files[taskNr]
+			reply.NReduce = c.nReduce
+			reply.TaskNumber = taskNr
 			taskNr += 1
 		} else {
 			return errors.New("Map task not available")
@@ -58,9 +59,9 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 	case REDUCE_PHASE:
 		if taskNr < c.nReduce {
-			reply.IntermediateFiles = c.intermediateFiles[taskNr]
-			reply.NReduce = c.nReduce
 			reply.Status = REDUCE_PHASE
+			reply.IntermediateFiles = c.intermediateFiles[taskNr]
+			reply.TaskNumber = taskNr
 			taskNr += 1
 		} else {
 			return errors.New("Reduce task not available")
@@ -78,66 +79,44 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 		c.intermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.intermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
 	}
 
-	ok := c.updateTaskStatus(args.FileName, REDUCE_PHASE)
-	if !ok {
-		fmt.Println("update task failed in MAP signal")
-	}
-
-	c.checkPhase(REDUCE_PHASE)
+	c.mapTasks[args.FileName] = Task{filename: args.FileName, status: REDUCE_PHASE}
+	c.checkMapPhaseDone()
 
 	return nil
 }
 
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
-	ok := c.updateTaskStatus(args.FileName, DONE)
-	if !ok {
-		fmt.Println("update task failed in REDUCE signal")
-	}
-	c.checkPhase(DONE)
+
+	c.reduceTasks[args.ReduceTaskNumber] = Task{ReduceBucket: args.ReduceTaskNumber, status: DONE}
+	c.checkReducePhaseDone()
 	return nil
 }
 
-func (c *Coordinator) updateTaskStatus(filename string, newStatus Status) bool {
+func (c *Coordinator) checkMapPhaseDone() {
 
-	c.tasks[filename] = Task{filename: filename, status: newStatus}
-
-	return true
-}
-
-func (c *Coordinator) checkPhase(nextStatus Status) {
-
-	for _, task := range c.tasks {
-		println("task.filename", task.filename)
-		println("nextStatus", nextStatus)
-		println("task.status", task.status)
-		if task.status != nextStatus {
+	for _, task := range c.mapTasks {
+		if task.status != REDUCE_PHASE {
+			println("mapping not done yet")
 			return
 		}
 	}
 
-	switch nextStatus {
-	case REDUCE_PHASE:
-		c.updateTask()
-		c.status = REDUCE_PHASE
-		taskNr = 0
-		return
-	case DONE:
-		c.status = DONE
-		c.done = true
-	default:
-		fmt.Println("i have a confeshan to make")
-	}
+	c.status = REDUCE_PHASE
+	taskNr = 0
 }
 
-func (c *Coordinator) updateTask() {
-	c.tasks = make(map[string]Task)
+func (c *Coordinator) checkReducePhaseDone() {
 
-	for _, ifiles := range c.intermediateFiles {
-		for _, ifile := range ifiles {
-			c.tasks[ifile.Filename] = Task{filename: ifile.Filename, status: REDUCE_PHASE}
+	for _, task := range c.reduceTasks {
+		println("Task id: ", task.ReduceBucket)
+		println("Task status: ", task.status)
+
+		if task.status != DONE {
+			println("reduce not done yet")
+			return
 		}
 	}
-
+	c.status = DONE
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -173,18 +152,19 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
 		files:             files,
 		nReduce:           nReduce,
-		done:              false,
-		tasks:             make(map[string]Task),
+		mapTasks:          make(map[string]Task),
+		reduceTasks:       make(map[int]Task),
 		status:            MAP_PHASE,
 		intermediateFiles: make(map[int][]IntermediateFile),
 	}
 
 	for _, file := range files {
-		c.tasks[file] = Task{status: MAP_PHASE, filename: file}
+		c.mapTasks[file] = Task{status: MAP_PHASE, filename: file}
 	}
 
 	for i := 0; i < nReduce; i++ {
 		c.intermediateFiles[i] = make([]IntermediateFile, len(files))
+		c.reduceTasks[i] = Task{ReduceBucket: i, status: REDUCE_PHASE}
 	}
 
 	c.server()

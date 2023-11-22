@@ -21,6 +21,7 @@ type IntermediateFile struct {
 
 type SignalPhaseDoneArgs struct {
 	FileName          string
+	ReduceTaskNumber  int
 	IntermediateFiles []IntermediateFile
 	Status            Status
 }

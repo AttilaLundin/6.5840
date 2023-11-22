@@ -50,8 +50,6 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 			MapTask(reply, mapf)
 		case REDUCE_PHASE:
 			ReduceTask(reply, reducef)
-		case DONE:
-			return
 		}
 		time.Sleep(time.Second)
 	}
@@ -162,7 +160,7 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	//	printIfError(err)
 	//}
 
-	args := SignalPhaseDoneArgs{FileName: replyReduce.Filename, IntermediateFiles: replyReduce.IntermediateFiles, Status: DONE}
+	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
 	reply := TaskReply{}
 
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)
@@ -184,7 +182,8 @@ func RequestTask() *TaskReply {
 		fmt.Printf("reply.Y %v\n", reply.Filename)
 		return &reply
 	} else {
-		fmt.Printf("call failed!\n")
+		fmt.Printf("call failed! We assume the work is done\n")
+		os.Exit(0)
 	}
 	return &reply
 }

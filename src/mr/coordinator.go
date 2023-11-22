@@ -67,11 +67,9 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 		}
 
 	case DONE:
-		fmt.Println("MapReduce done")
+		fmt.Println("MapReduce done !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		// TODO
-
 	}
-
 	return nil
 }
 
@@ -139,7 +137,7 @@ func (c *Coordinator) checkPhase(nextStatus Status) {
 	case DONE:
 		c.Done()
 	default:
-		fmt.Println("you are ge")
+		fmt.Println("i have a confeshan to make")
 	}
 }
 

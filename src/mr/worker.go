@@ -125,10 +125,6 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 		filesToReduce[i] = file
 		decs[i] = json.NewDecoder(file)
 	}
-	/*
-		file, err := os.Open(replyReduce.intermediateFiles.filename)
-		printIfError(err)
-		dec := json.NewDecoder(file)*/
 
 	for _, decoder := range decs {
 		for {
@@ -153,7 +149,6 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 		output := reducef(key, values)
 		fmt.Fprintf(ofile, "%v %v\n", key, output)
 	}
-
 	err := ofile.Close()
 	printIfError(err)
 
@@ -162,7 +157,7 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 		printIfError(err)
 	}
 
-	args := SignalPhaseDoneArgs{IntermediateFiles: replyReduce.intermediateFiles, Status: DONE}
+	args := SignalPhaseDoneArgs{FileName: replyReduce.Filename, IntermediateFiles: replyReduce.IntermediateFiles, Status: DONE}
 	reply := TaskReply{}
 
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)

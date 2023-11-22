@@ -191,9 +191,9 @@ func RequestTask() *TaskReply {
 
 func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 
-	ok := call("Coordinator.MapPhaseDoneSignalled", &reply, &args)
+	ok := call("Coordinator.MapPhaseDoneSignalled", &args, &reply)
 	if ok {
-		fmt.Println("Coordinator has been signalled")
+		fmt.Println("Coordinator has been signalled From Map")
 		return true
 	} else {
 		fmt.Printf("call failed!\n")
@@ -203,9 +203,9 @@ func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 }
 func ReduceSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 
-	ok := call("Coordinator.ReducePhaseDoneSignalled", &reply, &args)
+	ok := call("Coordinator.ReducePhaseDoneSignalled", &args, &reply)
 	if ok {
-		fmt.Println("Coordinator has been signalled")
+		fmt.Println("Coordinator has been signalled from Reduce")
 		return true
 	} else {
 		fmt.Printf("call failed!\n")

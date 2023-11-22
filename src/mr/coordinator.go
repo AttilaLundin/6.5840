@@ -50,7 +50,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 			reply.Filename = c.files[taskNr]
 			reply.TaskNumber = taskNr
 			reply.NReduce = c.nReduce
-			reply.Status = MAP_PHASE
+			//reply.Status = MAP_PHASE
 			taskNr += 1
 		} else {
 			return errors.New("Map task not available")
@@ -95,7 +95,7 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 	for _, intermediateFile := range args.IntermediateFiles {
-		ok := c.updateTaskStatus(intermediateFile.filename, args.Status)
+		ok := c.updateTaskStatus(intermediateFile.filename, DONE)
 		if !ok {
 			//	TODO: handle error
 		}

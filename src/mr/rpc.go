@@ -14,12 +14,13 @@ type GetTaskArgs struct {
 }
 
 type IntermediateFile struct {
-	filename         string
+	Filename         string
 	ReduceTaskNumber int
 	Path             string
 }
 
 type SignalPhaseDoneArgs struct {
+	FileName          string
 	IntermediateFiles []IntermediateFile
 	Status            Status
 }
@@ -29,7 +30,7 @@ type TaskReply struct {
 	TaskNumber        int
 	NReduce           int
 	Status            Status
-	intermediateFiles []IntermediateFile
+	IntermediateFiles []IntermediateFile
 }
 
 // Cook up a unique-ish UNIX-domain socket name

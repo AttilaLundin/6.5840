@@ -39,7 +39,6 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 
 	for {
-		fmt.Println("asffasafsafsafsasfassffsa")
 		reply := RequestTask()
 		if reply.Filename == "nil" && reply.Status != DONE {
 			fmt.Println("Filename is empty")
@@ -86,7 +85,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		//store the pointer to the intermediate file
 		intermediateFiles[i] = tmpFile
 		//store the file directory
-		intermediateFilePaths[i] = "../main" + intermediateFileName
+		intermediateFilePaths[i] = "../main/" + intermediateFileName
 		encs[i] = json.NewEncoder(tmpFile)
 	}
 
@@ -96,14 +95,14 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		printIfError(err)
 	}
 
-	args := SignalPhaseDoneArgs{IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
+	args := SignalPhaseDoneArgs{FileName: replyMap.Filename, IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
 	for i, path := range intermediateFilePaths {
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
-		args.IntermediateFiles[i].filename = replyMap.Filename
+		args.IntermediateFiles[i].Filename = replyMap.Filename
 		args.Status = REDUCE_PHASE
 	}
-	fmt.Println(args.IntermediateFiles[0].filename)
+
 	reply := TaskReply{}
 
 	mapSuccess := MapSignalPhaseDone(args, reply)
@@ -115,15 +114,15 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	var reduceKV []KeyValue
 
-	filesToReduce := make([]*os.File, len(replyReduce.intermediateFiles))
-	decs := make([]*json.Decoder, len(replyReduce.intermediateFiles))
+	filesToReduce := make([]*os.File, len(replyReduce.IntermediateFiles))
+	decs := make([]*json.Decoder, len(replyReduce.IntermediateFiles))
 
-	for i, intermediateFile := range replyReduce.intermediateFiles {
-		file, err := os.Open(intermediateFile.filename)
+	for i, intermediateFile := range replyReduce.IntermediateFiles {
+		file, err := os.Open(intermediateFile.Path)
 		printIfError(err)
-
 		filesToReduce[i] = file
 		decs[i] = json.NewDecoder(file)
+		defer file.Close()
 	}
 
 	for _, decoder := range decs {
@@ -147,15 +146,21 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 
 	for key, values := range group {
 		output := reducef(key, values)
-		fmt.Fprintf(ofile, "%v %v\n", key, output)
+		_, err := fmt.Fprintf(ofile, "%v %v\n", key, output)
+		if err != nil {
+			log.Fatal("ERROR IN WORKER, could not write key:", key, " output: ", output)
+		}
 	}
 	err := ofile.Close()
 	printIfError(err)
 
-	for _, f := range filesToReduce {
-		err := f.Close()
-		printIfError(err)
-	}
+	//for _, f := range filesToReduce {
+	//	err := f.Close()
+	//	if err != nil {
+	//		log.Fatal("ERROR IN WORKER, could not close file! ", f)
+	//	}
+	//	printIfError(err)
+	//}
 
 	args := SignalPhaseDoneArgs{FileName: replyReduce.Filename, IntermediateFiles: replyReduce.IntermediateFiles, Status: DONE}
 	reply := TaskReply{}

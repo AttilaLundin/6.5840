@@ -39,12 +39,13 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 
 	for {
+		time.Sleep(time.Second)
 		reply := RequestTask()
 		if reply.Filename == "nil" && reply.Status != DONE {
 			fmt.Println("Filename is empty")
 			// todo: kill
 		}
-		fmt.Println("in Worker, the status is:", reply.Status)
+		fmt.Println("in Worker, the Status is:", reply.Status)
 		switch reply.Status {
 		case MAP_PHASE:
 			MapTask(reply, mapf)
@@ -54,6 +55,21 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		time.Sleep(time.Second)
 	}
 
+}
+
+func RequestTask() *TaskReply {
+	args := GetTaskArgs{}
+	reply := TaskReply{}
+
+	ok := call("Coordinator.GrantTask", &args, &reply)
+	if ok {
+		fmt.Printf("reply.Y %v\n", reply.Filename)
+		return &reply
+	} else {
+		fmt.Printf("call failed! We assume the work is done\n")
+		os.Exit(0)
+	}
+	return &reply
 }
 
 func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
@@ -73,7 +89,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 	intermediateFilePaths := make([]string, replyMap.NReduce)
 	encs := make([]*json.Encoder, replyMap.NReduce)
 
-	// create intermediate files and json encoders so that we can encode them into json docs
+	// create intermediate Files and json encoders so that we can encode them into json docs
 	for i := 0; i < replyMap.NReduce; i++ {
 
 		intermediateFileName := "mr-" + strconv.Itoa(replyMap.TaskNumber) + "-" + strconv.Itoa(i)
@@ -87,7 +103,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		encs[i] = json.NewEncoder(tmpFile)
 	}
 
-	//partition the output from map (using ihash) into intermediate files with json for further work
+	//partition the output from map (using ihash) into intermediate Files with json for further work
 	for _, kv := range mapResult {
 		err = encs[ihash(kv.Key)%replyMap.NReduce].Encode(kv)
 		printIfError(err)
@@ -116,6 +132,7 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	decs := make([]*json.Decoder, len(replyReduce.IntermediateFiles))
 
 	for i, intermediateFile := range replyReduce.IntermediateFiles {
+		println("FILEPATH: ", intermediateFile.Path)
 		file, err := os.Open(intermediateFile.Path)
 		printIfError(err)
 		filesToReduce[i] = file
@@ -152,14 +169,6 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	err := ofile.Close()
 	printIfError(err)
 
-	//for _, f := range filesToReduce {
-	//	err := f.Close()
-	//	if err != nil {
-	//		log.Fatal("ERROR IN WORKER, could not close file! ", f)
-	//	}
-	//	printIfError(err)
-	//}
-
 	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
 	reply := TaskReply{}
 
@@ -172,21 +181,6 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 // example function to show how to make an RPC call to the coordinator.
 //
 // the RPC argument and reply types are defined in rpc.go.
-
-func RequestTask() *TaskReply {
-	args := GetTaskArgs{}
-	reply := TaskReply{}
-
-	ok := call("Coordinator.GrantTask", &args, &reply)
-	if ok {
-		fmt.Printf("reply.Y %v\n", reply.Filename)
-		return &reply
-	} else {
-		fmt.Printf("call failed! We assume the work is done\n")
-		os.Exit(0)
-	}
-	return &reply
-}
 
 func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 

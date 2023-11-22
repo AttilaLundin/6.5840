@@ -13,12 +13,12 @@ import (
 type Status int64
 
 type Coordinator struct {
-	nReduce           int
-	files             []string
-	mapTasks          map[string]Task
-	reduceTasks       map[int]Task
-	intermediateFiles map[int][]IntermediateFile
-	status            Status
+	NrReduce          int
+	Files             []string
+	MapTasks          map[string]Task
+	ReduceTasks       map[int]Task
+	IntermediateFiles map[int][]IntermediateFile
+	Status            Status
 }
 
 const (
@@ -42,15 +42,13 @@ var taskNr = 0
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
-	fmt.Println("Status in GrantTask:", c.status)
-
-	switch c.status {
+	switch c.Status {
 
 	case MAP_PHASE:
-		if taskNr < len(c.files) {
+		if taskNr < len(c.Files) {
 			reply.Status = MAP_PHASE
-			reply.Filename = c.files[taskNr]
-			reply.NReduce = c.nReduce
+			reply.Filename = c.Files[taskNr]
+			reply.NReduce = c.NrReduce
 			reply.TaskNumber = taskNr
 			taskNr += 1
 		} else {
@@ -58,11 +56,12 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 		}
 
 	case REDUCE_PHASE:
-		if taskNr < c.nReduce {
+		if taskNr < c.NrReduce {
 			reply.Status = REDUCE_PHASE
-			reply.IntermediateFiles = c.intermediateFiles[taskNr]
+			reply.IntermediateFiles = c.IntermediateFiles[taskNr]
 			reply.TaskNumber = taskNr
 			taskNr += 1
+			println("IN GRANTTASK", reply.IntermediateFiles[0].Path)
 		} else {
 			return errors.New("Reduce task not available")
 		}
@@ -76,10 +75,10 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 
 	for _, intermediateFile := range args.IntermediateFiles {
-		c.intermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.intermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
+		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
 	}
 
-	c.mapTasks[args.FileName] = Task{filename: args.FileName, status: REDUCE_PHASE}
+	c.MapTasks[args.FileName] = Task{filename: args.FileName, status: REDUCE_PHASE}
 	c.checkMapPhaseDone()
 
 	return nil
@@ -87,36 +86,32 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 
-	c.reduceTasks[args.ReduceTaskNumber] = Task{ReduceBucket: args.ReduceTaskNumber, status: DONE}
+	c.ReduceTasks[args.ReduceTaskNumber] = Task{ReduceBucket: args.ReduceTaskNumber, status: DONE}
 	c.checkReducePhaseDone()
 	return nil
 }
 
 func (c *Coordinator) checkMapPhaseDone() {
 
-	for _, task := range c.mapTasks {
+	for _, task := range c.MapTasks {
 		if task.status != REDUCE_PHASE {
-			println("mapping not done yet")
 			return
 		}
 	}
 
-	c.status = REDUCE_PHASE
+	c.Status = REDUCE_PHASE
 	taskNr = 0
 }
 
 func (c *Coordinator) checkReducePhaseDone() {
 
-	for _, task := range c.reduceTasks {
-		println("Task id: ", task.ReduceBucket)
-		println("Task status: ", task.status)
+	for _, task := range c.ReduceTasks {
 
 		if task.status != DONE {
-			println("reduce not done yet")
 			return
 		}
 	}
-	c.status = DONE
+	c.Status = DONE
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -138,7 +133,7 @@ func (c *Coordinator) server() {
 func (c *Coordinator) Done() bool {
 	ret := false
 
-	if c.status == DONE {
+	if c.Status == DONE {
 		ret = true
 	}
 
@@ -147,24 +142,24 @@ func (c *Coordinator) Done() bool {
 
 // create a Coordinator.
 // main/mrcoordinator.go calls this function.
-// nReduce is the number of reduce tasks to use.
+// NrReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
-		files:             files,
-		nReduce:           nReduce,
-		mapTasks:          make(map[string]Task),
-		reduceTasks:       make(map[int]Task),
-		status:            MAP_PHASE,
-		intermediateFiles: make(map[int][]IntermediateFile),
+		Files:             files,
+		NrReduce:          nReduce,
+		MapTasks:          make(map[string]Task),
+		ReduceTasks:       make(map[int]Task),
+		Status:            MAP_PHASE,
+		IntermediateFiles: make(map[int][]IntermediateFile),
 	}
 
 	for _, file := range files {
-		c.mapTasks[file] = Task{status: MAP_PHASE, filename: file}
+		c.MapTasks[file] = Task{status: MAP_PHASE, filename: file}
 	}
 
 	for i := 0; i < nReduce; i++ {
-		c.intermediateFiles[i] = make([]IntermediateFile, len(files))
-		c.reduceTasks[i] = Task{ReduceBucket: i, status: REDUCE_PHASE}
+		c.IntermediateFiles[i] = make([]IntermediateFile, len(files))
+		c.ReduceTasks[i] = Task{ReduceBucket: i, status: REDUCE_PHASE}
 	}
 
 	c.server()

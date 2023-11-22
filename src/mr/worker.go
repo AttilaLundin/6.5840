@@ -39,11 +39,13 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
 
 	for {
+		fmt.Println("asffasafsafsafsasfassffsa")
 		reply := RequestTask()
 		if reply.Filename == "nil" && reply.Status != DONE {
 			fmt.Println("Filename is empty")
 			// todo: kill
 		}
+		fmt.Println("in Worker, the status is:", reply.Status)
 		switch reply.Status {
 		case MAP_PHASE:
 			MapTask(reply, mapf)
@@ -101,7 +103,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		args.IntermediateFiles[i].filename = replyMap.Filename
 		args.Status = REDUCE_PHASE
 	}
-
+	fmt.Println(args.IntermediateFiles[0].filename)
 	reply := TaskReply{}
 
 	mapSuccess := MapSignalPhaseDone(args, reply)

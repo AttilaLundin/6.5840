@@ -41,6 +41,8 @@ var taskNr = 0
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
+	fmt.Println("in GranTask:", c.status)
+
 	switch c.status {
 
 	case MAP_PHASE:
@@ -73,24 +75,21 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 	return nil
 }
 
-func (c *Coordinator) updateTaskStatus(filename string, newStatus Status) bool {
-	task, ok := c.tasks[filename]
-	if !ok {
-		return false
-	}
-	task.status = newStatus
-	return true
-}
-
 func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
-	for _, intermediateFile := range args.IntermediateFiles {
+
+	for i, intermediateFile := range args.IntermediateFiles {
 		c.intermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.intermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
-		ok := c.updateTaskStatus(intermediateFile.filename, args.Status)
+		fmt.Println(args.IntermediateFiles[i].filename)
+		fmt.Println(i)
+		ok := c.updateTaskStatus(intermediateFile.filename, REDUCE_PHASE)
 		if !ok {
 			//	TODO: handle error
 		}
 	}
-	c.checkPhase(args.Status)
+	fmt.Println("before checkPhase")
+	fmt.Println(c.tasks["pg-being_ernest.txt"].status)
+	c.checkPhase(REDUCE_PHASE)
+	fmt.Println("after checkPhase")
 	return nil
 }
 
@@ -101,28 +100,47 @@ func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply 
 			//	TODO: handle error
 		}
 	}
-	c.checkPhase(args.Status)
+	c.checkPhase(DONE)
 	return nil
 }
 
-func (c *Coordinator) checkPhase(status Status) {
-	for _, task := range c.tasks {
-		if task.status != status {
+func (c *Coordinator) updateTaskStatus(filename string, newStatus Status) bool {
+	fmt.Println("this is updateStatus")
+	fmt.Println(c.tasks[filename])
+
+	c.tasks[filename] = Task{filename: filename, status: newStatus}
+	fmt.Println("this is updateStatus part 2")
+	fmt.Println(c.tasks[filename])
+	return true
+}
+
+func (c *Coordinator) checkPhase(nextStatus Status) {
+	fmt.Println("this is checkphase")
+	fmt.Println("nextStatus:", nextStatus)
+	for i := 0; i < len(c.tasks); i++ {
+		fmt.Println("c.tasks[\"pg-being_ernest.txt\"].status", c.tasks["pg-being_ernest.txt"].status)
+	}
+
+	for i, task := range c.tasks {
+		fmt.Println("-----------", i)
+		fmt.Println("status for the task=", task.status)
+		if task.status != nextStatus {
+			fmt.Println("here")
 			return
 		}
 	}
-
-	switch status {
+	fmt.Println("nextStatus:::", nextStatus)
+	switch nextStatus {
 	case REDUCE_PHASE:
+		fmt.Println("in checkPhase -> REDUCEPHASE")
 		c.status = REDUCE_PHASE
 		taskNr = 0
 		return
 	case DONE:
 		c.Done()
 	default:
-		fmt.Println("Status ==", status)
+		fmt.Println("you are ge")
 	}
-
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -156,17 +174,21 @@ func (c *Coordinator) Done() bool {
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
-		files:   files,
-		nReduce: nReduce,
-		done:    false,
-		tasks:   make(map[string]Task, len(files)),
-		status:  MAP_PHASE,
+		files:             files,
+		nReduce:           nReduce,
+		done:              false,
+		tasks:             make(map[string]Task, len(files)),
+		status:            MAP_PHASE,
+		intermediateFiles: make(map[int][]IntermediateFile),
 	}
 
-	for _, file := range files {
+	for i, file := range files {
+		fmt.Println(i)
 		c.tasks[file] = Task{status: MAP_PHASE, filename: file}
+		c.intermediateFiles[i] = make([]IntermediateFile, nReduce)
 	}
 
+	fmt.Println(len(c.intermediateFiles))
 	c.server()
 	return &c
 }

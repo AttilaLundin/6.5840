@@ -45,7 +45,6 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 			fmt.Println("Filename is empty")
 			// todo: kill
 		}
-		fmt.Println("in Worker, the Status is:", reply.Status)
 		switch reply.Status {
 		case MAP_PHASE:
 			MapTask(reply, mapf)
@@ -133,7 +132,6 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	decs := make([]*json.Decoder, len(replyReduce.IntermediateFiles))
 
 	for i, intermediateFile := range replyReduce.IntermediateFiles {
-		println("FILEPATH: ", intermediateFile.Path)
 		file, err := os.Open(intermediateFile.Path)
 		printIfError(err)
 		filesToReduce[i] = file

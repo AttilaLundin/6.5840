@@ -2,12 +2,12 @@ package mr
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 	"os"
+	"sync"
 )
 
 type Status int64
@@ -19,6 +19,7 @@ type Coordinator struct {
 	ReduceTasks       map[int]Task
 	IntermediateFiles map[int][]IntermediateFile
 	Status            Status
+	lock              sync.Mutex
 }
 
 const (
@@ -42,6 +43,8 @@ var taskNr = 0
 // the RPC argument and reply types are defined in rpc.go.
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	switch c.Status {
 
 	case MAP_PHASE:
@@ -61,12 +64,10 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 			reply.IntermediateFiles = c.IntermediateFiles[taskNr]
 			reply.TaskNumber = taskNr
 			taskNr += 1
-			println("IN GRANTTASK", reply.IntermediateFiles[0].Path)
 		} else {
 			return errors.New("Reduce task not available")
 		}
 	case DONE:
-		fmt.Println("MapReduce done !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		// TODO
 	}
 	return nil
@@ -74,20 +75,22 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 
+	c.lock.Lock()
 	for _, intermediateFile := range args.IntermediateFiles {
 		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
 	}
-
 	c.MapTasks[args.FileName] = Task{filename: args.FileName, status: REDUCE_PHASE}
 	c.checkMapPhaseDone()
-
+	c.lock.Unlock()
 	return nil
 }
 
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 
+	c.lock.Lock()
 	c.ReduceTasks[args.ReduceTaskNumber] = Task{ReduceBucket: args.ReduceTaskNumber, status: DONE}
 	c.checkReducePhaseDone()
+	c.lock.Unlock()
 	return nil
 }
 
@@ -133,9 +136,11 @@ func (c *Coordinator) server() {
 func (c *Coordinator) Done() bool {
 	ret := false
 
+	c.lock.Lock()
 	if c.Status == DONE {
 		ret = true
 	}
+	c.lock.Unlock()
 
 	return ret
 }
@@ -157,8 +162,11 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		c.MapTasks[file] = Task{status: MAP_PHASE, filename: file}
 	}
 
+	for i := 0; i < len(files); i++ {
+		c.IntermediateFiles[i] = make([]IntermediateFile, 0)
+	}
+
 	for i := 0; i < nReduce; i++ {
-		c.IntermediateFiles[i] = make([]IntermediateFile, len(files))
 		c.ReduceTasks[i] = Task{ReduceBucket: i, status: REDUCE_PHASE}
 	}
 

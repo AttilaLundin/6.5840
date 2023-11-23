@@ -18,6 +18,7 @@ type Coordinator struct {
 	MapTasks          map[string]Task
 	ReduceTasks       map[int]Task
 	IntermediateFiles map[int][]IntermediateFile
+	FailedTasks       chan TaskReply
 	Status            Status
 	lock              sync.Mutex
 }
@@ -100,7 +101,7 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
 
 	c.lock.Lock()
-	c.ReduceTasks[args.ReduceTaskNumber] = Task{ReduceBucket: args.ReduceTaskNumber, status: DONE}
+	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, status: DONE}
 	c.checkReducePhaseDone()
 	c.lock.Unlock()
 	return nil
@@ -192,7 +193,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	}
 
 	for i := 0; i < nReduce; i++ {
-		c.ReduceTasks[i] = Task{ReduceBucket: i, status: REDUCE_PHASE}
+		c.ReduceTasks[i] = Task{TaskNumber: i, status: REDUCE_PHASE}
 	}
 
 	c.server()

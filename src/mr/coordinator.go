@@ -8,6 +8,7 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
 
 type Status int64
@@ -181,6 +182,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		ReduceTasks:       make(map[int]Task),
 		Status:            MAP_PHASE,
 		IntermediateFiles: make(map[int][]IntermediateFile),
+		FailedTasks:       make(chan TaskReply),
 		lock:              sync.Mutex{},
 	}
 

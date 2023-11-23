@@ -26,12 +26,14 @@ const (
 	MAP_PHASE    Status = 0
 	REDUCE_PHASE        = 1
 	DONE                = 2
+	FAILED              = 3
 )
 
 type Task struct {
-	ReduceBucket int
-	filename     string
-	status       Status
+	TaskNumber  int
+	filename    string
+	status      Status
+	timeOfStart time.Time
 }
 
 var taskNr = 0
@@ -45,6 +47,15 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
+
+	select {
+	case crashedTask := <-c.FailedTasks:
+		reply = &crashedTask
+		go c.checkCrash(&crashedTask)
+		return nil
+	default:
+	}
+
 	switch c.Status {
 
 	case MAP_PHASE:
@@ -53,6 +64,9 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 			reply.Filename = c.Files[taskNr]
 			reply.NReduce = c.NrReduce
 			reply.TaskNumber = taskNr
+			c.ReduceTasks[reply.TaskNumber] = Task{
+				timeOfStart: time.Now(),
+			}
 			taskNr += 1
 		} else {
 			return errors.New("Map task not available")
@@ -67,8 +81,6 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 		} else {
 			return errors.New("Reduce task not available")
 		}
-	case DONE:
-		// TODO
 	}
 	return nil
 }
@@ -115,6 +127,18 @@ func (c *Coordinator) checkReducePhaseDone() {
 		}
 	}
 	c.Status = DONE
+}
+
+func (c *Coordinator) checkCrash(taskInfo *TaskReply) {
+	var initialStatus Status = taskInfo.Status
+	time.Sleep(time.Second * 10)
+	var newStatus Status = taskInfo.Status
+
+	if initialStatus == newStatus {
+		c.FailedTasks <- *taskInfo
+		println("worker crashed in map OR reduce")
+	}
+
 }
 
 // start a thread that listens for RPCs from worker.go

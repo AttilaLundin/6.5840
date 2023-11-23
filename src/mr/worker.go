@@ -101,7 +101,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		//store the pointer to the intermediate file
 		intermediateFiles[i] = tmpFile
 		//store the file directory
-		intermediateFilePaths[i] = "../main/" + intermediateFileName
+		intermediateFilePaths[i] = intermediateFileName
 		encs[i] = json.NewEncoder(tmpFile)
 	}
 

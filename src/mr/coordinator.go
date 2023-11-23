@@ -156,6 +156,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		ReduceTasks:       make(map[int]Task),
 		Status:            MAP_PHASE,
 		IntermediateFiles: make(map[int][]IntermediateFile),
+		lock:              sync.Mutex{},
 	}
 
 	for _, file := range files {

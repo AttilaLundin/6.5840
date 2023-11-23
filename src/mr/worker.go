@@ -10,8 +10,11 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
+
+var lock = sync.Mutex{}
 
 type KeyValueSlice []KeyValue
 
@@ -37,7 +40,6 @@ func ihash(key string) int {
 
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
-
 	for {
 		time.Sleep(time.Second)
 		reply := RequestTask()
@@ -72,6 +74,7 @@ func RequestTask() *TaskReply {
 }
 
 func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
+
 	file, err := os.Open(replyMap.Filename)
 	printIfError(err)
 
@@ -125,6 +128,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 }
 
 func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
+
 	println(len(replyReduce.IntermediateFiles))
 	var reduceKV []KeyValue
 

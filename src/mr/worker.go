@@ -58,9 +58,9 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 }
 
-func RequestTask() *TaskReply {
+func RequestTask() *Task {
 	args := GetTaskArgs{}
-	reply := TaskReply{}
+	reply := Task{}
 
 	ok := call("Coordinator.GrantTask", &args, &reply)
 	if ok {
@@ -73,7 +73,7 @@ func RequestTask() *TaskReply {
 	return &reply
 }
 
-func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
+func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 
 	file, err := os.Open(replyMap.Filename)
 	printIfError(err)
@@ -119,7 +119,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 		args.Status = REDUCE_PHASE
 	}
 
-	reply := TaskReply{}
+	reply := Task{}
 
 	mapSuccess := MapSignalPhaseDone(args, reply)
 	if !mapSuccess {
@@ -127,7 +127,7 @@ func MapTask(replyMap *TaskReply, mapf func(string, string) []KeyValue) {
 	}
 }
 
-func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
+func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 
 	println(len(replyReduce.IntermediateFiles))
 	var reduceKV []KeyValue
@@ -173,7 +173,7 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 	printIfError(err)
 
 	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
-	reply := TaskReply{}
+	reply := Task{}
 
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)
 	if !reduceSuccess {
@@ -185,7 +185,7 @@ func ReduceTask(replyReduce *TaskReply, reducef func(string, []string) string) {
 //
 // the RPC argument and reply types are defined in rpc.go.
 
-func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
+func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply Task) bool {
 
 	ok := call("Coordinator.MapPhaseDoneSignalled", &args, &reply)
 	if ok {
@@ -197,7 +197,7 @@ func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
 	}
 
 }
-func ReduceSignalPhaseDone(args SignalPhaseDoneArgs, reply TaskReply) bool {
+func ReduceSignalPhaseDone(args SignalPhaseDoneArgs, reply Task) bool {
 
 	ok := call("Coordinator.ReducePhaseDoneSignalled", &args, &reply)
 	if ok {

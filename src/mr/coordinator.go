@@ -19,7 +19,7 @@ type Coordinator struct {
 	MapTasks          map[string]Task
 	ReduceTasks       map[int]Task
 	IntermediateFiles map[int][]IntermediateFile
-	FailedTasks       chan TaskReply
+	FailedTasks       chan Task
 	Status            Status
 	lock              sync.Mutex
 }
@@ -30,12 +30,12 @@ const (
 	DONE                = 2
 )
 
-type Task struct {
-	TaskNumber  int
-	filename    string
-	status      Status
-	timeOfStart time.Time
-}
+//type Task struct {
+//	TaskNumber  int
+//	filename    string
+//	status      Status
+//	timeOfStart time.Time
+//}
 
 var taskNr = 0
 
@@ -44,7 +44,7 @@ var taskNr = 0
 // an example RPC handler.
 //
 // the RPC argument and reply types are defined in rpc.go.
-func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
+func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -83,22 +83,22 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 	return nil
 }
 
-func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
+func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
 
 	c.lock.Lock()
 	for _, intermediateFile := range args.IntermediateFiles {
 		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
 	}
-	c.MapTasks[args.FileName] = Task{filename: args.FileName, status: REDUCE_PHASE}
+	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE}
 	c.checkMapPhaseDone()
 	c.lock.Unlock()
 	return nil
 }
 
-func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *TaskReply) error {
+func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
 
 	c.lock.Lock()
-	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, status: DONE}
+	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, Status: DONE}
 	c.checkReducePhaseDone()
 	c.lock.Unlock()
 	return nil
@@ -107,7 +107,7 @@ func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply 
 func (c *Coordinator) checkMapPhaseDone() {
 
 	for _, task := range c.MapTasks {
-		if task.status != REDUCE_PHASE {
+		if task.Status != REDUCE_PHASE {
 			return
 		}
 	}
@@ -120,14 +120,14 @@ func (c *Coordinator) checkReducePhaseDone() {
 
 	for _, task := range c.ReduceTasks {
 
-		if task.status != DONE {
+		if task.Status != DONE {
 			return
 		}
 	}
 	c.Status = DONE
 }
 
-func (c *Coordinator) checkCrash(taskInfo *TaskReply) {
+func (c *Coordinator) checkCrash(taskInfo *Task) {
 	var initialStatus Status = taskInfo.Status
 	time.Sleep(time.Second * 10)
 	var newStatus Status = taskInfo.Status
@@ -178,12 +178,12 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		ReduceTasks:       make(map[int]Task),
 		Status:            MAP_PHASE,
 		IntermediateFiles: make(map[int][]IntermediateFile),
-		FailedTasks:       make(chan TaskReply),
+		FailedTasks:       make(chan Task),
 		lock:              sync.Mutex{},
 	}
 
 	for _, file := range files {
-		c.MapTasks[file] = Task{status: MAP_PHASE, filename: file}
+		c.MapTasks[file] = Task{Status: MAP_PHASE, Filename: file}
 	}
 
 	for i := 0; i < len(files); i++ {
@@ -191,7 +191,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	}
 
 	for i := 0; i < nReduce; i++ {
-		c.ReduceTasks[i] = Task{TaskNumber: i, status: REDUCE_PHASE}
+		c.ReduceTasks[i] = Task{TaskNumber: i, Status: REDUCE_PHASE}
 	}
 
 	c.server()

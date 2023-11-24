@@ -26,7 +26,7 @@ type SignalPhaseDoneArgs struct {
 	Status            Status
 }
 
-type TaskReply struct {
+type Task struct {
 	Filename          string
 	TaskNumber        int
 	NReduce           int

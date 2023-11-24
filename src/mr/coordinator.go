@@ -28,7 +28,6 @@ const (
 	MAP_PHASE    Status = 0
 	REDUCE_PHASE        = 1
 	DONE                = 2
-	FAILED              = 3
 )
 
 type Task struct {
@@ -66,9 +65,6 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *TaskReply) error {
 			reply.Filename = c.Files[taskNr]
 			reply.NReduce = c.NrReduce
 			reply.TaskNumber = taskNr
-			c.ReduceTasks[reply.TaskNumber] = Task{
-				timeOfStart: time.Now(),
-			}
 			taskNr += 1
 		} else {
 			return errors.New("Map task not available")

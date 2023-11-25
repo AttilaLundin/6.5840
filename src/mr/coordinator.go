@@ -28,8 +28,6 @@ const (
 	MAP_PHASE    Status = 0
 	REDUCE_PHASE        = 1
 	DONE                = 2
-	MAP_SUCCESS
-	REDUCE_SUCCESS
 )
 
 //type Task struct {
@@ -40,9 +38,6 @@ const (
 //}
 
 var taskNr = 0
-var mapctr = 0
-var redctr = 0
-var grtctr = 0
 
 // Your code here -- RPC handlers for the worker to call.
 

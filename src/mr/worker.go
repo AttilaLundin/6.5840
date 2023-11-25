@@ -10,11 +10,8 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 )
-
-var lock = sync.Mutex{}
 
 type KeyValueSlice []KeyValue
 
@@ -122,7 +119,6 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 
 	args := SignalPhaseDoneArgs{FileName: replyMap.Filename, IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
 	for i, path := range intermediateFilePaths {
-		args.Task = replyMap
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
 		args.IntermediateFiles[i].Filename = replyMap.Filename
@@ -181,7 +177,7 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 	err := ofile.Close()
 	printIfError(err)
 
-	args := SignalPhaseDoneArgs{Task: replyReduce, ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
+	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
 	reply := Task{}
 
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)

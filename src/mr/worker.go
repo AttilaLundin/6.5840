@@ -145,7 +145,6 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 	decs := make([]*json.Decoder, len(replyReduce.IntermediateFiles))
 
 	for i, intermediateFile := range replyReduce.IntermediateFiles {
-		println("intermediateFile info: ", intermediateFile.Filename, intermediateFile.Path)
 		file, err := os.Open(intermediateFile.Path)
 		printIfError(err)
 		filesToReduce[i] = file

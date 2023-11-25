@@ -56,7 +56,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 
 	select {
 	case crashedTask := <-c.FailedTasks:
-		reply = crashedTask
+		*reply = *crashedTask
 		reply.FailedTask = true
 		go c.checkCrash(reply)
 		println("in case crashedTask: ", reply.Filename, reply.TaskNumber, reply.Status, reply.Success, reply.FailedTask)

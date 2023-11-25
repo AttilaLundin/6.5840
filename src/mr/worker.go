@@ -43,15 +43,25 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 	for {
 		time.Sleep(time.Second)
 		reply := RequestTask()
-		if reply.Filename == "nil" && reply.Status != DONE {
-			fmt.Println("Filename is empty")
-			// todo: kill
+		if reply.FailedTask == true {
+			println("This is a failed task!")
 		}
+
 		switch reply.Status {
 		case MAP_PHASE:
+			if reply.Filename == "" {
+				println("empty filename... continue")
+				continue
+			}
 			MapTask(reply, mapf)
 		case REDUCE_PHASE:
+			if len(reply.IntermediateFiles) == 0 {
+				println("empty reduce task... continue")
+				continue
+			}
 			ReduceTask(reply, reducef)
+		case DONE:
+			os.Exit(0)
 		}
 		time.Sleep(time.Second)
 	}
@@ -67,8 +77,7 @@ func RequestTask() *Task {
 		fmt.Printf("reply.Y %v\n", reply.Filename)
 		return &reply
 	} else {
-		fmt.Printf("call failed! We assume the work is done\n")
-		os.Exit(0)
+		fmt.Printf("call failed! Trying again\n")
 	}
 	return &reply
 }
@@ -113,6 +122,7 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 
 	args := SignalPhaseDoneArgs{FileName: replyMap.Filename, IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
 	for i, path := range intermediateFilePaths {
+		args.Task = replyMap
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
 		args.IntermediateFiles[i].Filename = replyMap.Filename
@@ -129,13 +139,13 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 
 func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 
-	println(len(replyReduce.IntermediateFiles))
 	var reduceKV []KeyValue
 
 	filesToReduce := make([]*os.File, len(replyReduce.IntermediateFiles))
 	decs := make([]*json.Decoder, len(replyReduce.IntermediateFiles))
 
 	for i, intermediateFile := range replyReduce.IntermediateFiles {
+		println("intermediateFile info: ", intermediateFile.Filename, intermediateFile.Path)
 		file, err := os.Open(intermediateFile.Path)
 		printIfError(err)
 		filesToReduce[i] = file
@@ -172,7 +182,7 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 	err := ofile.Close()
 	printIfError(err)
 
-	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
+	args := SignalPhaseDoneArgs{Task: replyReduce, ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
 	reply := Task{}
 
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)

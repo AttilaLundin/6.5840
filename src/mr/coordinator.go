@@ -19,7 +19,7 @@ type Coordinator struct {
 	MapTasks          map[string]Task
 	ReduceTasks       map[int]Task
 	IntermediateFiles map[int][]IntermediateFile
-	FailedTasks       chan Task
+	FailedTasks       chan *Task
 	Status            Status
 	lock              sync.Mutex
 }
@@ -28,6 +28,8 @@ const (
 	MAP_PHASE    Status = 0
 	REDUCE_PHASE        = 1
 	DONE                = 2
+	MAP_SUCCESS
+	REDUCE_SUCCESS
 )
 
 //type Task struct {
@@ -38,6 +40,9 @@ const (
 //}
 
 var taskNr = 0
+var mapctr = 0
+var redctr = 0
+var grtctr = 0
 
 // Your code here -- RPC handlers for the worker to call.
 
@@ -51,36 +56,43 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 
 	select {
 	case crashedTask := <-c.FailedTasks:
-		reply = &crashedTask
-		go c.checkCrash(&crashedTask)
+		reply = crashedTask
+		reply.FailedTask = true
+		go c.checkCrash(reply)
+		println("in case crashedTask: ", reply.Filename, reply.TaskNumber, reply.Status, reply.Success, reply.FailedTask)
 		return nil
 	default:
-	}
+		switch c.Status {
 
-	switch c.Status {
+		case MAP_PHASE:
+			if taskNr < len(c.Files) {
+				reply.Status = MAP_PHASE
+				reply.Filename = c.Files[taskNr]
+				reply.NReduce = c.NrReduce
+				reply.TaskNumber = taskNr
+				go c.checkCrash(reply)
+				taskNr += 1
+			} else {
+				return errors.New("map task not available")
+			}
 
-	case MAP_PHASE:
-		if taskNr < len(c.Files) {
-			reply.Status = MAP_PHASE
-			reply.Filename = c.Files[taskNr]
-			reply.NReduce = c.NrReduce
-			reply.TaskNumber = taskNr
-			taskNr += 1
-		} else {
-			return errors.New("Map task not available")
-		}
-
-	case REDUCE_PHASE:
-		if taskNr < c.NrReduce {
-			reply.Status = REDUCE_PHASE
-			reply.IntermediateFiles = c.IntermediateFiles[taskNr]
-			reply.TaskNumber = taskNr
-			taskNr += 1
-		} else {
-			return errors.New("Reduce task not available")
+		case REDUCE_PHASE:
+			if taskNr < c.NrReduce {
+				reply.Status = REDUCE_PHASE
+				reply.IntermediateFiles = c.IntermediateFiles[taskNr]
+				reply.TaskNumber = taskNr
+				go c.checkCrash(reply)
+				taskNr += 1
+			} else {
+				return errors.New("reduce task not available")
+			}
+		case DONE:
+			println("Work is completely finished - exiting worker")
+			reply.Status = DONE
 		}
 	}
 	return nil
+
 }
 
 func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
@@ -89,7 +101,7 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 	for _, intermediateFile := range args.IntermediateFiles {
 		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
 	}
-	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE}
+	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE, Success: true}
 	c.checkMapPhaseDone()
 	c.lock.Unlock()
 	return nil
@@ -98,7 +110,7 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
 
 	c.lock.Lock()
-	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, Status: DONE}
+	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, Status: DONE, Success: true}
 	c.checkReducePhaseDone()
 	c.lock.Unlock()
 	return nil
@@ -128,13 +140,25 @@ func (c *Coordinator) checkReducePhaseDone() {
 }
 
 func (c *Coordinator) checkCrash(taskInfo *Task) {
-	var initialStatus Status = taskInfo.Status
 	time.Sleep(time.Second * 10)
-	var newStatus Status = taskInfo.Status
 
-	if initialStatus == newStatus {
-		c.FailedTasks <- *taskInfo
-		println("worker crashed in map OR reduce")
+	var eqvTask Task
+	var printMsg string
+	switch taskInfo.Status {
+	case MAP_PHASE:
+		eqvTask = c.MapTasks[taskInfo.Filename]
+		printMsg = "worker crashed in map"
+	case REDUCE_PHASE:
+		eqvTask = c.ReduceTasks[taskInfo.TaskNumber]
+		printMsg = "worker crashed in reduce"
+	}
+
+	if eqvTask.Success {
+		println("worker did not crash")
+	} else {
+		println("taskInfo contains: ", taskInfo.Filename, taskInfo.TaskNumber, taskInfo.Status, taskInfo.Success)
+		c.FailedTasks <- taskInfo
+		println(printMsg)
 	}
 
 }
@@ -178,7 +202,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		ReduceTasks:       make(map[int]Task),
 		Status:            MAP_PHASE,
 		IntermediateFiles: make(map[int][]IntermediateFile),
-		FailedTasks:       make(chan Task),
+		FailedTasks:       make(chan *Task),
 		lock:              sync.Mutex{},
 	}
 

@@ -20,6 +20,7 @@ type IntermediateFile struct {
 }
 
 type SignalPhaseDoneArgs struct {
+	Task              *Task
 	FileName          string
 	ReduceTaskNumber  int
 	IntermediateFiles []IntermediateFile
@@ -31,6 +32,8 @@ type Task struct {
 	TaskNumber        int
 	NReduce           int
 	Status            Status
+	Success           bool
+	FailedTask        bool
 	IntermediateFiles []IntermediateFile
 }
 

@@ -134,7 +134,9 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 	var printMsg string
 	switch taskInfo.Status {
 	case MAP_PHASE:
+		c.lock.Lock()
 		eqvTask = c.MapTasks[taskInfo.Filename]
+		c.lock.Unlock()
 		printMsg = "worker crashed in map"
 	case REDUCE_PHASE:
 		c.lock.Lock()

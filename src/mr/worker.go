@@ -50,7 +50,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		switch reply.Status {
 		case MAP_PHASE:
 			if reply.Filename == "" {
-				println("empty filename... continue")
+				println("empty filename... continue,", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
 				continue
 			}
 			MapTask(reply, mapf)

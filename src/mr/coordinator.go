@@ -137,7 +137,9 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 		eqvTask = c.MapTasks[taskInfo.Filename]
 		printMsg = "worker crashed in map"
 	case REDUCE_PHASE:
+		c.lock.Lock()
 		eqvTask = c.ReduceTasks[taskInfo.TaskNumber]
+		c.lock.Unlock()
 		printMsg = "worker crashed in reduce"
 	}
 

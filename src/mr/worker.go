@@ -1,8 +1,12 @@
 package mr
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"hash/fnv"
 	"io"
 	"log"
@@ -50,6 +54,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 				println("empty filename... continue,", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
 				continue
 			}
+			getFileFromS3(reply.Filename)
 			MapTask(reply, mapf)
 		case REDUCE_PHASE:
 			if len(reply.IntermediateFiles) == 0 {
@@ -77,6 +82,44 @@ func RequestTask() *Task {
 		fmt.Printf("call failed! Trying again\n")
 	}
 	return &reply
+}
+
+func getFileFromS3(filename string) {
+	// Load the Shared AWS Configuration (~/.aws/config)
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithRegion("us-east-1"),
+	)
+	if err != nil {
+		log.Fatalf("unable to load SDK config, %v", err)
+	}
+
+	// Create an Amazon S3 service client
+	client := s3.NewFromConfig(cfg)
+
+	// Create the GetObject input parameters
+	input := &s3.GetObjectInput{
+		Bucket: aws.String("tda596-group10"), // Replace with your bucket name
+		Key:    aws.String(filename),         // Replace with the object key
+	}
+
+	// Call S3 to retrieve the object
+	result, err := client.GetObject(context.TODO(), input)
+	if err != nil {
+		log.Fatalf("unable to retrieve object, %v", err)
+	}
+
+	// Create a file to write the downloaded contents to
+	outFile, err := os.Create(filename + "2")
+	if err != nil {
+		log.Fatalf("unable to create file, %v", err)
+	}
+	defer outFile.Close()
+
+	// Write the contents of S3 Object to the file
+	_, err = io.Copy(outFile, result.Body)
+	if err != nil {
+		log.Fatalf("unable to write file, %v", err)
+	}
 }
 
 func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {

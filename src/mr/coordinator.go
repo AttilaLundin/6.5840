@@ -30,13 +30,6 @@ const (
 	DONE                = 2
 )
 
-//type Task struct {
-//	TaskNumber  int
-//	filename    string
-//	status      Status
-//	timeOfStart time.Time
-//}
-
 var taskNr = 0
 
 // Your code here -- RPC handlers for the worker to call.

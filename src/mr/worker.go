@@ -110,7 +110,7 @@ func getFileFromS3(filename string) {
 	}
 
 	// Create a file to write the downloaded contents to
-	outFile, err := os.Create(filename + "2")
+	outFile, err := os.Create(filename)
 	if err != nil {
 		log.Fatalf("unable to create file, %v", err)
 	}
@@ -277,9 +277,8 @@ func ReduceSignalPhaseDone(args SignalPhaseDoneArgs, reply Task) bool {
 // usually returns true.
 // returns false if something goes wrong.
 func call(rpcname string, args interface{}, reply interface{}) bool {
-	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
-	sockname := coordinatorSock()
-	c, err := rpc.DialHTTP("unix", sockname)
+	coordinatorIP := os.Getenv("CIP")
+	c, err := rpc.DialHTTP("tcp", coordinatorIP+":1234")
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}

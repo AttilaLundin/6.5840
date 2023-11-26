@@ -8,7 +8,6 @@ package mr
 
 import (
 	"os"
-	"time"
 )
 import "strconv"
 

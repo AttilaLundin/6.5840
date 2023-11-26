@@ -131,6 +131,7 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 	for i, path := range intermediateFilePaths {
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
+		args.TaskNumber = replyMap.TaskNumber
 		args.IntermediateFiles[i].Filename = replyMap.Filename
 		args.Status = REDUCE_PHASE
 	}

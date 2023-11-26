@@ -89,8 +89,6 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 	for _, intermediateFile := range args.IntermediateFiles {
 
 		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
-
-		println("In map signal the size of intermfiles slice is: ", len(c.IntermediateFiles[intermediateFile.ReduceTaskNumber]))
 	}
 
 	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE, Success: true}
@@ -205,7 +203,6 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	}
 
 	for i := 0; i < len(c.Files); i++ {
-		print("c.files len is: ", len(c.Files))
 		c.IntermediateFiles[i] = make([]IntermediateFile, 0)
 	}
 

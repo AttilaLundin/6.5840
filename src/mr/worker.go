@@ -46,7 +46,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		time.Sleep(time.Second)
 		reply := RequestTask()
 		if reply.FailedTask == true {
-			println("This is a failed task!")
+			println("worker received previously failed task")
 		}
 
 		switch reply.Status {

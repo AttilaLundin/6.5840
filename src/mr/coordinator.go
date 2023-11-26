@@ -87,22 +87,13 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 
 	c.lock.Lock()
 
-	for _, iFile := range args.IntermediateFiles {
-		c.IntermediateFiles[iFile.ReduceTaskNumber][args.TaskNumber] = iFile
+	for _, intermediateFile := range args.IntermediateFiles {
+
+		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
+
+		println("In map signal the size of intermfiles slice is: ", len(c.IntermediateFiles[intermediateFile.ReduceTaskNumber]))
 	}
-	/*
-		for _, intermediateFile := range args.IntermediateFiles {
-			println("length of args.intermediatefiles: ", len(args.IntermediateFiles))
 
-			for i := 0; i < c.NrReduce; i++ {
-				c.IntermediateFiles[intermediateFile.ReduceTaskNumber][i] = intermediateFile
-			}
-
-			println("In map signal the size of intermfiles slice is: ", len(c.IntermediateFiles[intermediateFile.ReduceTaskNumber]))
-		}
-
-
-	*/
 	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE, Success: true}
 	c.checkMapPhaseDone()
 	c.lock.Unlock()
@@ -216,9 +207,9 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		c.MapTasks[file] = Task{Status: MAP_PHASE, Filename: file}
 	}
 
-	for i := 0; i < nReduce; i++ {
+	for i := 0; i < len(c.Files); i++ {
 		print("c.files len is: ", len(c.Files))
-		c.IntermediateFiles[i] = make([]IntermediateFile, len(files))
+		c.IntermediateFiles[i] = make([]IntermediateFile, 0)
 	}
 
 	for i := 0; i < nReduce; i++ {

@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"hash/fnv"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/rpc"
 	"os"
@@ -51,14 +52,14 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		switch reply.Status {
 		case MAP_PHASE:
 			if reply.Filename == "" {
-				println("empty filename... continue,", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
+				println("empty filename - request task again", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
 				continue
 			}
 			getFileFromS3(reply.Filename)
 			MapTask(reply, mapf)
 		case REDUCE_PHASE:
 			if len(reply.IntermediateFiles) == 0 {
-				println("empty reduce task... continue")
+				println("empty reduce task - request task again")
 				continue
 			}
 			ReduceTask(reply, reducef)
@@ -144,13 +145,13 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 	for i := 0; i < replyMap.NReduce; i++ {
 
 		intermediateFileName := "mr-" + strconv.Itoa(replyMap.TaskNumber) + "-" + strconv.Itoa(i)
-		tmpFile, err := os.Create(intermediateFileName)
+		tmpFile, err := ioutil.TempFile("", intermediateFileName)
 		printIfError(err)
 
 		//store the pointer to the intermediate file
 		intermediateFiles[i] = tmpFile
 		//store the file directory
-		intermediateFilePaths[i] = intermediateFileName
+		intermediateFilePaths[i] = tmpFile.Name()
 		encs[i] = json.NewEncoder(tmpFile)
 	}
 
@@ -160,10 +161,20 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 		printIfError(err)
 	}
 
+	for i, tmpFile := range intermediateFiles {
+		err = tmpFile.Close()
+		printIfError(err)
+
+		// Use os.Rename to atomically rename the temporary file to the final destination
+		err = os.Rename(tmpFile.Name(), intermediateFilePaths[i])
+		printIfError(err)
+	}
+
 	args := SignalPhaseDoneArgs{FileName: replyMap.Filename, IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
 	for i, path := range intermediateFilePaths {
 		args.IntermediateFiles[i].Path = path
 		args.IntermediateFiles[i].ReduceTaskNumber = i
+		args.TaskNumber = replyMap.TaskNumber
 		args.IntermediateFiles[i].Filename = replyMap.Filename
 		args.Status = REDUCE_PHASE
 	}
@@ -208,16 +219,21 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 	}
 
 	oname := "mr-out-" + strconv.Itoa(replyReduce.TaskNumber)
-	ofile, _ := os.Create(oname)
+
+	tmpFile, err := ioutil.TempFile("", "mr-out-")
+	printIfError(err)
+
+	defer tmpFile.Close()
 
 	for key, values := range group {
 		output := reducef(key, values)
-		_, err := fmt.Fprintf(ofile, "%v %v\n", key, output)
+		_, err := fmt.Fprintf(tmpFile, "%v %v\n", key, output)
 		if err != nil {
 			log.Fatal("ERROR IN WORKER, could not write key:", key, " output: ", output)
 		}
 	}
-	err := ofile.Close()
+
+	err = os.Rename(tmpFile.Name(), oname)
 	printIfError(err)
 
 	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}

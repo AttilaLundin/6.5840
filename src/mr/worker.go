@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/rpc"
 	"os"
@@ -47,13 +48,13 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		switch reply.Status {
 		case MAP_PHASE:
 			if reply.Filename == "" {
-				println("empty filename... continue,", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
+				println("empty filename - request task again", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
 				continue
 			}
 			MapTask(reply, mapf)
 		case REDUCE_PHASE:
 			if len(reply.IntermediateFiles) == 0 {
-				println("empty reduce task... continue")
+				println("empty reduce task - request task again")
 				continue
 			}
 			ReduceTask(reply, reducef)
@@ -101,19 +102,28 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 	for i := 0; i < replyMap.NReduce; i++ {
 
 		intermediateFileName := "mr-" + strconv.Itoa(replyMap.TaskNumber) + "-" + strconv.Itoa(i)
-		tmpFile, err := os.Create(intermediateFileName)
+		tmpFile, err := ioutil.TempFile("", intermediateFileName)
 		printIfError(err)
 
 		//store the pointer to the intermediate file
 		intermediateFiles[i] = tmpFile
 		//store the file directory
-		intermediateFilePaths[i] = intermediateFileName
+		intermediateFilePaths[i] = tmpFile.Name()
 		encs[i] = json.NewEncoder(tmpFile)
 	}
 
 	//partition the output from map (using ihash) into intermediate Files with json for further work
 	for _, kv := range mapResult {
 		err = encs[ihash(kv.Key)%replyMap.NReduce].Encode(kv)
+		printIfError(err)
+	}
+
+	for i, tmpFile := range intermediateFiles {
+		err = tmpFile.Close()
+		printIfError(err)
+
+		// Use os.Rename to atomically rename the temporary file to the final destination
+		err = os.Rename(tmpFile.Name(), intermediateFilePaths[i])
 		printIfError(err)
 	}
 
@@ -165,16 +175,21 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 	}
 
 	oname := "mr-out-" + strconv.Itoa(replyReduce.TaskNumber)
-	ofile, _ := os.Create(oname)
+
+	tmpFile, err := ioutil.TempFile("", "mr-out-")
+	printIfError(err)
+
+	defer tmpFile.Close()
 
 	for key, values := range group {
 		output := reducef(key, values)
-		_, err := fmt.Fprintf(ofile, "%v %v\n", key, output)
+		_, err := fmt.Fprintf(tmpFile, "%v %v\n", key, output)
 		if err != nil {
 			log.Fatal("ERROR IN WORKER, could not write key:", key, " output: ", output)
 		}
 	}
-	err := ofile.Close()
+
+	err = os.Rename(tmpFile.Name(), oname)
 	printIfError(err)
 
 	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}

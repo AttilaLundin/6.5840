@@ -6,7 +6,10 @@ package mr
 // remember to capitalize all names.
 //
 
-import "os"
+import (
+	"os"
+	"time"
+)
 import "strconv"
 
 // todo: justera eventuellt
@@ -24,6 +27,7 @@ type SignalPhaseDoneArgs struct {
 	ReduceTaskNumber  int
 	IntermediateFiles []IntermediateFile
 	Status            Status
+	TaskNumber        int
 }
 
 type Task struct {
@@ -33,6 +37,7 @@ type Task struct {
 	Status            Status
 	Success           bool
 	FailedTask        bool
+	UUID              time.Time
 	IntermediateFiles []IntermediateFile
 }
 

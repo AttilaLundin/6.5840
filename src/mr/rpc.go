@@ -37,7 +37,6 @@ type Task struct {
 	Status            Status
 	Success           bool
 	FailedTask        bool
-	UUID              time.Time
 	IntermediateFiles []IntermediateFile
 }
 

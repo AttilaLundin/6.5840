@@ -154,10 +154,8 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 		printMsg = "worker crashed in reduce"
 	}
 
-	if eqvTask.Success {
-		println("worker did not crash")
-	} else {
-		println("taskInfo contains: ", taskInfo.Filename, taskInfo.TaskNumber, taskInfo.Status, taskInfo.Success)
+	if !eqvTask.Success {
+		println("worker crashed")
 		c.FailedTasks <- taskInfo
 		println(printMsg)
 	}

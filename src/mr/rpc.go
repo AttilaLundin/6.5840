@@ -11,7 +11,7 @@ import (
 )
 import "strconv"
 
-// in our implementation this struct is not neede
+// used to send empty struct
 type GetTaskArgs struct {
 }
 
@@ -31,7 +31,7 @@ type SignalPhaseDoneArgs struct {
 	TaskNumber        int
 }
 
-// this is the task, which can be either a map- or a reduce task
+// this is the task, which can be either a map task or a reduce task
 type Task struct {
 	Filename          string
 	TaskNumber        int

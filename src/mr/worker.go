@@ -94,7 +94,7 @@ func RequestTask() *Task {
 }
 
 func getFileFromS3(filename string) {
-	// load the hared AWS Configuration
+	// load the shared AWS Configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-1"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
@@ -221,7 +221,7 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 		defer file.Close()
 	}
 
-	//decodes, i.e retrieves, each key-value pair from the files related to this task and stores them for further computations
+	//decodes i.e. retrieves each key-value pair from the files related to this task and stores them for further computations
 	for _, decoder := range decs {
 		for {
 			var kv KeyValue

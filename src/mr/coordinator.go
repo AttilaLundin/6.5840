@@ -41,7 +41,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	//in case of crash, the crashed task is once again assigned to the worker
+	//in case of crash, the crashed task is once again assigned to a worker
 	//otherwise a new task is assigned
 	select {
 	case crashedTask := <-c.FailedTasks:
@@ -55,7 +55,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 		switch c.Status {
 
 		case MAP_PHASE:
-			// check if taskNr is in range and then construct the reply
+			// we have len(c.Files) nr of tasks (input files)
 			if taskNr < len(c.Files) {
 				reply.Status = MAP_PHASE
 				reply.Filename = c.Files[taskNr]
@@ -71,7 +71,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 			}
 
 		case REDUCE_PHASE:
-			// check if taskNr is in the correct bounds and then construct a reply for the Reduce phase
+			// we have nReduce nr of reduce tasks
 			if taskNr < c.NrReduce {
 				reply.Status = REDUCE_PHASE
 				reply.IntermediateFiles = c.IntermediateFiles[taskNr]
@@ -98,7 +98,7 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 	// lock shared data
 	c.lock.Lock()
 
-	//Loop through the intermediate files and check if the already exist.
+	// check if the intermediate file already exist (in case of previously crashed task)
 	for _, intermediateFile := range args.IntermediateFiles {
 		existingFiles := c.IntermediateFiles[intermediateFile.ReduceTaskNumber]
 		fileExists := false
@@ -108,14 +108,14 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 				break
 			}
 		}
-		//If the file doesnt exist then it is appended
+		//If the file doesnt exist then it is added
 		if !fileExists {
 			c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(existingFiles, intermediateFile)
 		}
 	}
-	//  update the Status of the task to next Phase and set Success to true since the worker finished
+	//  update the Status of the task to next phase and set Success to true since the worker did not crash
 	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE, Success: true}
-	// Check if all tasks are done with mapping
+	// Check if all map phase is done (all map tasks done)
 	c.checkMapPhaseDone()
 	c.lock.Unlock()
 	return nil
@@ -125,9 +125,9 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
 
 	c.lock.Lock()
-	//  update the Status of the task to next Phase and set Success to true since the worker finished
+	//  update the Status of the task to next Phase and set Success to true since the worker did not crash
 	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, Status: DONE, Success: true}
-	// Check if all tasks are done with reduce phase
+	// Check if all tasks are done with reduce phase (all reduce tasks done)
 	c.checkReducePhaseDone()
 	c.lock.Unlock()
 	return nil
@@ -135,13 +135,13 @@ func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply 
 
 // checks if the map phase is done for all tasks
 func (c *Coordinator) checkMapPhaseDone() {
-	// loop through all Maptasks and check if the status has been updated to Reduce phase. If not we return
+	// loop through all MapTasks and check if the status has been updated to Reduce phase. If not we return
 	for _, task := range c.MapTasks {
 		if task.Status != REDUCE_PHASE {
 			return
 		}
 	}
-	//Update the status of the coordinator so that the next time it is called, it reply's with Reduce Tasks
+	//Update the status of the coordinator so that the next time it is called, it replies with Reduce Tasks
 	c.Status = REDUCE_PHASE
 	// Reset the taskNr var for the Reduce tasks
 	taskNr = 0
@@ -169,6 +169,8 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 	switch taskInfo.Status {
 	case MAP_PHASE:
 		c.lock.Lock()
+		// retrieve the task that is equivalent to the taskInfo task that we passed in
+		// we can't reuse taskInfo because worker modifies a copy despite pointer (a property of RPC calls)
 		eqvTask = c.MapTasks[taskInfo.Filename]
 		c.lock.Unlock()
 		printMsg = "worker crashed in map"

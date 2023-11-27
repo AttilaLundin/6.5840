@@ -156,7 +156,6 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 	}
 
 	if !eqvTask.Success {
-		println("worker crashed")
 		c.FailedTasks <- taskInfo
 		println(printMsg)
 	}

@@ -122,7 +122,7 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 		err = tmpFile.Close()
 		printIfError(err)
 
-		// Use os.Rename to atomically rename the temporary file to the final destination
+		// use os.Rename to atomically rename the temporary file to the final destination
 		err = os.Rename(tmpFile.Name(), intermediateFilePaths[i])
 		printIfError(err)
 	}

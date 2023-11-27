@@ -9,7 +9,6 @@ package mr
 import "os"
 import "strconv"
 
-// todo: justera eventuellt
 type GetTaskArgs struct {
 }
 

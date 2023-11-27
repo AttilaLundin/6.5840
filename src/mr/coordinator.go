@@ -87,7 +87,17 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 
 	c.lock.Lock()
 	for _, intermediateFile := range args.IntermediateFiles {
-		c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(c.IntermediateFiles[intermediateFile.ReduceTaskNumber], intermediateFile)
+		existingFiles := c.IntermediateFiles[intermediateFile.ReduceTaskNumber]
+		fileExists := false
+		for _, existingFile := range existingFiles {
+			if existingFile == intermediateFile {
+				fileExists = true
+				break
+			}
+		}
+		if !fileExists {
+			c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(existingFiles, intermediateFile)
+		}
 	}
 	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE, Success: true}
 	c.checkMapPhaseDone()

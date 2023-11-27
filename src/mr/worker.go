@@ -129,6 +129,7 @@ func getFileFromS3(filename string) {
 	}
 }
 
+// the function responsible for mapping files and creates intermediate files for further computations
 func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 
 	file, err := os.Open(replyMap.Filename)
@@ -199,13 +200,19 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 	}
 }
 
+// the function responsible for reducing the mapped files to an output file
 func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 
+	//data structure to store the key-value pairs read from the intermediate file
 	var reduceKV []KeyValue
 
+	//list of opened intermediate files coordinator has allocated to the worker
 	filesToReduce := make([]*os.File, len(replyReduce.IntermediateFiles))
+
+	//list of json decoders so that we can read the intermediate files
 	decs := make([]*json.Decoder, len(replyReduce.IntermediateFiles))
 
+	//opens the allocated files and created json decoders associated with them, then stores them in the datastructures above
 	for i, intermediateFile := range replyReduce.IntermediateFiles {
 		file, err := os.Open(intermediateFile.Path)
 		printIfError(err)
@@ -214,6 +221,7 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 		defer file.Close()
 	}
 
+	//decodes, i.e retrieves, each key-value pair from the files related to this task and stores them for further computations
 	for _, decoder := range decs {
 		for {
 			var kv KeyValue
@@ -224,19 +232,24 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 		}
 	}
 
+	//data structure that will store each key, where the value will be the value associated with it and the length the sum of occurrences of said key-value pair
 	group := make(map[string][]string)
 
+	//does the grouping explained above.
 	for i := 0; i < len(reduceKV); i++ {
 		group[reduceKV[i].Key] = append(group[reduceKV[i].Key], reduceKV[i].Value)
 	}
 
+	//output file name
 	oname := "mr-out-" + strconv.Itoa(replyReduce.TaskNumber)
 
+	// same "trick" as in map task to prevent incomplete files
 	tmpFile, err := ioutil.TempFile("", "mr-out-")
 	printIfError(err)
 
 	defer tmpFile.Close()
 
+	//writes the result from reducf() to the temporary file. this is done for each key in group
 	for key, values := range group {
 		output := reducef(key, values)
 		_, err := fmt.Fprintf(tmpFile, "%v %v\n", key, output)
@@ -245,22 +258,22 @@ func ReduceTask(replyReduce *Task, reducef func(string, []string) string) {
 		}
 	}
 
+	//atomically creates a normal .txt file from the temporary file as in map task
 	err = os.Rename(tmpFile.Name(), oname)
 	printIfError(err)
 
+	//initiate the structs containing relevant information that the coordinator needs
 	args := SignalPhaseDoneArgs{ReduceTaskNumber: replyReduce.TaskNumber, Status: DONE}
 	reply := Task{}
 
+	//signals the coordinator that the task is completed
 	reduceSuccess := ReduceSignalPhaseDone(args, reply)
 	if !reduceSuccess {
 		fmt.Println("Signalling reduce done failed")
 	}
 }
 
-// example function to show how to make an RPC call to the coordinator.
-//
-// the RPC argument and reply types are defined in rpc.go.
-
+// will signal the coordinator that the mapping is done for the allocated task through an rpc call
 func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply Task) bool {
 
 	ok := call("Coordinator.MapPhaseDoneSignalled", &args, &reply)
@@ -273,6 +286,8 @@ func MapSignalPhaseDone(args SignalPhaseDoneArgs, reply Task) bool {
 	}
 
 }
+
+// will signal the coordinator that the reduce is done for the allocated task through an rpc call
 func ReduceSignalPhaseDone(args SignalPhaseDoneArgs, reply Task) bool {
 
 	ok := call("Coordinator.ReducePhaseDoneSignalled", &args, &reply)
@@ -306,11 +321,16 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 	return false
 }
 
-func logIfFatalError(err error) {
+// helper function that moves error checking elsewhere.
+// used to reduce clutter
+func logFatalIfError(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
 }
+
+// helper function that moves error checking elsewhere.
+// used to reduce clutter
 func printIfError(err error) {
 	if err != nil {
 		fmt.Println(err)

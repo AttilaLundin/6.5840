@@ -11,16 +11,18 @@ import (
 )
 import "strconv"
 
-// todo: justera eventuellt
+// in our implementation this struct is not neede
 type GetTaskArgs struct {
 }
 
+// represents all the information related to an intermediate file
 type IntermediateFile struct {
 	Filename         string
 	ReduceTaskNumber int
 	Path             string
 }
 
+// contains all the relevant information that the coordinator will use after a task is completed
 type SignalPhaseDoneArgs struct {
 	FileName          string
 	ReduceTaskNumber  int
@@ -29,6 +31,7 @@ type SignalPhaseDoneArgs struct {
 	TaskNumber        int
 }
 
+// this is the task, which can be either a map- or a reduce task
 type Task struct {
 	Filename          string
 	TaskNumber        int

@@ -12,6 +12,22 @@ import (
 
 type Status int64
 
+// definitions for the coordinator and workers to use - primary purpose is for human readability and minimize error proneness
+const (
+	MAP_PHASE    Status = 0
+	REDUCE_PHASE        = 1
+	DONE                = 2
+)
+
+/*
+containerization of all the relevant data the coordinator needs to have in order
+to do the coordinating tasks to the workers and in order to assign work to the worker
+and all the tasks that the coordinator stores and then assigns to the worker which the worker will
+then use to coordinate their work assigned by the coordinator to coordinate properly and efficiently
+while the workers are working together to coordinate due to concurrency requirements so that the coordinator can then
+assign the correct work to the correct worker so that the workers do not interefere with each others' work while working
+in parallel in this distributed system of workers and coordinators that need to work and coordinate together.
+*/
 type Coordinator struct {
 	NrReduce          int
 	Files             []string
@@ -71,6 +87,8 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 				go c.checkCrash(reply)
 				taskNr += 1
 			} else {
+				//if all the map tasks are assigned but not yet completed we will dismiss the worker until we have
+				//tasks to assign
 				return errors.New("reduce task not available")
 			}
 		case DONE:
@@ -79,7 +97,6 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 		}
 	}
 	return nil
-
 }
 
 func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {

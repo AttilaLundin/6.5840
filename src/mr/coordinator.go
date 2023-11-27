@@ -80,10 +80,12 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 			}
 
 		case REDUCE_PHASE:
+			// check if taskNr is in the correct bounds and then construct a reply for the Reduce phase
 			if taskNr < c.NrReduce {
 				reply.Status = REDUCE_PHASE
 				reply.IntermediateFiles = c.IntermediateFiles[taskNr]
 				reply.TaskNumber = taskNr
+				// start a go routine to check if the worker crashed
 				go c.checkCrash(reply)
 				taskNr += 1
 			} else {
@@ -91,6 +93,7 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 				//tasks to assign
 				return errors.New("reduce task not available")
 			}
+			// Conctruct a DONE reply so the worker can Exit
 		case DONE:
 			println("Work is completely finished - exiting worker")
 			reply.Status = DONE
@@ -99,9 +102,12 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 	return nil
 }
 
+// function for workers to signal when they are done with the Map Phase
 func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
-
+	// lock shared data
 	c.lock.Lock()
+
+	//Loop through the intermediate files and check if the already exist.
 	for _, intermediateFile := range args.IntermediateFiles {
 		existingFiles := c.IntermediateFiles[intermediateFile.ReduceTaskNumber]
 		fileExists := false
@@ -111,49 +117,60 @@ func (c *Coordinator) MapPhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Ta
 				break
 			}
 		}
+		//If the file doesnt exist then it is appended
 		if !fileExists {
 			c.IntermediateFiles[intermediateFile.ReduceTaskNumber] = append(existingFiles, intermediateFile)
 		}
 	}
+	//  update the Status of the task to next Phase and set Success to true since the worker finished
 	c.MapTasks[args.FileName] = Task{Filename: args.FileName, Status: REDUCE_PHASE, Success: true}
+	// Check if all tasks are done with mapping
 	c.checkMapPhaseDone()
 	c.lock.Unlock()
 	return nil
 }
 
+// function for workers to signal when they are done with the reduce phase
 func (c *Coordinator) ReducePhaseDoneSignalled(args *SignalPhaseDoneArgs, reply *Task) error {
 
 	c.lock.Lock()
+	//  update the Status of the task to next Phase and set Success to true since the worker finished
 	c.ReduceTasks[args.ReduceTaskNumber] = Task{TaskNumber: args.ReduceTaskNumber, Status: DONE, Success: true}
+	// Check if all tasks are done with reduce phase
 	c.checkReducePhaseDone()
 	c.lock.Unlock()
 	return nil
 }
 
+// checks if the map phase is done for all tasks
 func (c *Coordinator) checkMapPhaseDone() {
-
+	// loop through all Maptasks and check if the status has been updated to Reduce phase. If not we return
 	for _, task := range c.MapTasks {
 		if task.Status != REDUCE_PHASE {
 			return
 		}
 	}
-
+	//Update the status of the coordinator so that the next time it is called, it reply's with Reduce Tasks
 	c.Status = REDUCE_PHASE
+	// Reset the taskNr var for the Reduce tasks
 	taskNr = 0
 }
 
+// called every time a task signals done - checks if the reduce phase is done for all tasks
 func (c *Coordinator) checkReducePhaseDone() {
-
+	// loop through all reduce tasks and check if the status has been updated to DONE.
 	for _, task := range c.ReduceTasks {
 		// if all tasks are not DONE, simply return
 		if task.Status != DONE {
 			return
 		}
 	}
+	// update the status of the coordinator to DONE - means the whole job is finished
 	c.Status = DONE
 }
 
 func (c *Coordinator) checkCrash(taskInfo *Task) {
+	// wait for worker to finish task
 	time.Sleep(time.Second * 10)
 
 	var eqvTask Task
@@ -170,7 +187,7 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 		c.lock.Unlock()
 		printMsg = "worker crashed in reduce"
 	}
-
+	// if not finished after 10s the worker has crashed and the task is placed into a channel of FailedTasks
 	if !eqvTask.Success {
 		c.FailedTasks <- taskInfo
 		println(printMsg)

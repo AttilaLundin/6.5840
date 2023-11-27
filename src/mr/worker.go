@@ -72,7 +72,7 @@ func RequestTask() *Task {
 
 	ok := call("Coordinator.GrantTask", &args, &reply)
 	if ok {
-		fmt.Printf("reply.Y %v\n", reply.Filename)
+		fmt.Printf("%v\n", reply.Filename)
 		return &reply
 	} else {
 		fmt.Printf("call failed! Trying again\n")

@@ -42,9 +42,10 @@ func ihash(key string) int {
 
 // main/mrworker.go calls this function.
 func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string) string) {
+	// main loop of worker
 	for {
-		time.Sleep(time.Second)
 		reply := RequestTask()
+		// a task that has been restarted by a new worker due to a crash gets marked with FailedTask
 		if reply.FailedTask == true {
 			println("worker received previously failed task")
 		}
@@ -52,20 +53,27 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 		switch reply.Status {
 		case MAP_PHASE:
 			if reply.Filename == "" {
-				println("empty filename - request task again", reply.Filename, reply.TaskNumber, reply.Status, reply.FailedTask)
+				println("empty filename - request task again")
+				// restart for loop to ask for a new task
 				continue
 			}
+			// AWS method to retrieve a file from our AWS S3 bucket
 			getFileFromS3(reply.Filename)
 			MapTask(reply, mapf)
 		case REDUCE_PHASE:
+			// if the length of intermediateFiles is 0 from the reply, it means it is an invalid reduce task
 			if len(reply.IntermediateFiles) == 0 {
 				println("empty reduce task - request task again")
+				// restart for loop to ask for a new task
 				continue
 			}
 			ReduceTask(reply, reducef)
 		case DONE:
+			// a reply with DONE from coordinator
+			println("worker received DONE - exiting")
 			os.Exit(0)
 		}
+		// sleep so next task request gets time to ready up
 		time.Sleep(time.Second)
 	}
 
@@ -86,37 +94,35 @@ func RequestTask() *Task {
 }
 
 func getFileFromS3(filename string) {
-	// Load the Shared AWS Configuration (~/.aws/config)
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion("us-east-1"),
-	)
+	// load the hared AWS Configuration
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-1"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
 
-	// Create an Amazon S3 service client
+	// create a service client for the S3 bucket
 	client := s3.NewFromConfig(cfg)
 
-	// Create the GetObject input parameters
+	// create the GetObject input parameters
 	input := &s3.GetObjectInput{
-		Bucket: aws.String("tda596-group10"), // Replace with your bucket name
-		Key:    aws.String(filename),         // Replace with the object key
+		Bucket: aws.String("tda596-group10"), // the S3 bucket where files are shared
+		Key:    aws.String(filename),         // file we want to retrieve task for
 	}
 
-	// Call S3 to retrieve the object
+	// retrieve object from S3 using input with bucket name and filename as key
 	result, err := client.GetObject(context.TODO(), input)
 	if err != nil {
 		log.Fatalf("unable to retrieve object, %v", err)
 	}
 
-	// Create a file to write the downloaded contents to
+	// create a file to write the downloaded contents to
 	outFile, err := os.Create(filename)
 	if err != nil {
 		log.Fatalf("unable to create file, %v", err)
 	}
 	defer outFile.Close()
 
-	// Write the contents of S3 Object to the file
+	// write the contents of S3 object to the file
 	_, err = io.Copy(outFile, result.Body)
 	if err != nil {
 		log.Fatalf("unable to write file, %v", err)
@@ -134,23 +140,27 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 	err = file.Close()
 	printIfError(err)
 
+	// the key value pairs stored in a slice
 	var mapResult KeyValueSlice = mapf(replyMap.Filename, string(content))
 	sort.Sort(mapResult)
 
+	// create nReduce nr of (intermediate) files
 	intermediateFiles := make([]*os.File, replyMap.NReduce)
+	// create nReduce nr of paths for each intermediate file
 	intermediateFilePaths := make([]string, replyMap.NReduce)
+	// create intermediate Files and json encoders (one for each file) so that we can encode them into json docs
 	encs := make([]*json.Encoder, replyMap.NReduce)
 
-	// create intermediate Files and json encoders so that we can encode them into json docs
 	for i := 0; i < replyMap.NReduce; i++ {
-
+		// create file name according to convention mr-X-Y where X = map task nr and Y == reduce task nr
 		intermediateFileName := "mr-" + strconv.Itoa(replyMap.TaskNumber) + "-" + strconv.Itoa(i)
+		// tmp file "trick" to avoid observing incomplete files
 		tmpFile, err := ioutil.TempFile("", intermediateFileName)
 		printIfError(err)
 
-		//store the pointer to the intermediate file
+		// store the pointer to the intermediate file
 		intermediateFiles[i] = tmpFile
-		//store the file directory
+		// store the file directory
 		intermediateFilePaths[i] = tmpFile.Name()
 		encs[i] = json.NewEncoder(tmpFile)
 	}
@@ -161,15 +171,18 @@ func MapTask(replyMap *Task, mapf func(string, string) []KeyValue) {
 		printIfError(err)
 	}
 
+	// close each tmpFile
 	for i, tmpFile := range intermediateFiles {
 		err = tmpFile.Close()
 		printIfError(err)
 
-		// Use os.Rename to atomically rename the temporary file to the final destination
+		// atomically rename the temporary file to the final destination
+		// part of the "trick" to avoid observing incomplete files
 		err = os.Rename(tmpFile.Name(), intermediateFilePaths[i])
 		printIfError(err)
 	}
 
+	// for each path, initialize each intermediate files in each slot of the slice
 	args := SignalPhaseDoneArgs{FileName: replyMap.Filename, IntermediateFiles: make([]IntermediateFile, len(intermediateFilePaths))}
 	for i, path := range intermediateFilePaths {
 		args.IntermediateFiles[i].Path = path
@@ -304,3 +317,5 @@ func printIfError(err error) {
 		return
 	}
 }
+
+// here lies "failiour" rip <3 🪦🌷💀

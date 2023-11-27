@@ -23,24 +23,19 @@ type Coordinator struct {
 	lock              sync.Mutex
 }
 
-const (
-	MAP_PHASE    Status = 0
-	REDUCE_PHASE        = 1
-	DONE                = 2
-)
-
 var taskNr = 0
 
 // Your code here -- RPC handlers for the worker to call.
 
-// an example RPC handler.
-//
-// the RPC argument and reply types are defined in rpc.go.
+// Grants tasks to workers upon requests through RPC calls
 func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 
+	// lock shared data
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	//in case of crash, the crashed task is once again assigned to the worker
+	//otherwise a new task is assigned
 	select {
 	case crashedTask := <-c.FailedTasks:
 		*reply = *crashedTask
@@ -49,17 +44,22 @@ func (c *Coordinator) GrantTask(args *GetTaskArgs, reply *Task) error {
 		println("in case crashedTask: ", reply.Filename, reply.TaskNumber, reply.Status, reply.Success, reply.FailedTask)
 		return nil
 	default:
+		// switch based on the status of the coordinator
 		switch c.Status {
 
 		case MAP_PHASE:
+			// check if taskNr is in range and then construct the reply
 			if taskNr < len(c.Files) {
 				reply.Status = MAP_PHASE
 				reply.Filename = c.Files[taskNr]
 				reply.NReduce = c.NrReduce
 				reply.TaskNumber = taskNr
+				// start a go rutin to check if the worker crashed
 				go c.checkCrash(reply)
 				taskNr += 1
 			} else {
+				//if all the map tasks are assigned but not yet completed we will dismiss the worker until we have
+				//tasks to assign
 				return errors.New("map task not available")
 			}
 
@@ -128,7 +128,7 @@ func (c *Coordinator) checkMapPhaseDone() {
 func (c *Coordinator) checkReducePhaseDone() {
 
 	for _, task := range c.ReduceTasks {
-
+		// if all tasks are not DONE, simply return
 		if task.Status != DONE {
 			return
 		}
@@ -155,7 +155,6 @@ func (c *Coordinator) checkCrash(taskInfo *Task) {
 	}
 
 	if !eqvTask.Success {
-		println("worker crashed")
 		c.FailedTasks <- taskInfo
 		println(printMsg)
 	}

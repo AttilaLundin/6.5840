@@ -105,7 +105,7 @@ func getFileFromS3(filename string) {
 
 	// create the GetObject input parameters
 	input := &s3.GetObjectInput{
-		Bucket: aws.String("tda596-group10"), // the S3 bucket where files are shared
+		Bucket: aws.String("group10-tda596"), // the S3 bucket where files are shared
 		Key:    aws.String(filename),         // file we want to retrieve task for
 	}
 
